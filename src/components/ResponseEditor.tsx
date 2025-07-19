@@ -146,7 +146,9 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     return (
       <div
         key={block.id}
-        ref={el => blockRefs.current[block.id] = el}
+        ref={(el) => {
+          blockRefs.current[block.id] = el;
+        }}
         className="group border border-gray-200 rounded-lg p-4 mb-4 hover:border-blue-300 transition-colors"
       >
         <div className="flex items-center justify-between mb-2">

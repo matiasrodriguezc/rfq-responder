@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Response } from '../types';
 import GenerateButton from '../components/GenerateButton';
 import ResponseEditor from '../components/ResponseEditor';
@@ -9,9 +9,9 @@ import { Building2, FileText, Award, CheckCircle } from 'lucide-react';
 const RFQResponder: React.FC = () => {
   const [currentResponse, setCurrentResponse] = useState<Response | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const responseRef = React.useRef<HTMLDivElement | null>(null);
+  const [shouldScrollToResponse, setShouldScrollToResponse] = useState(false);
+  const responseRef = useRef<HTMLDivElement | null>(null);
 
-  // Mock RFQ data based on the hackathon sample
   const rfqData = {
     title: "FA301625Q0050 - Air Force Bleacher Systems",
     deadline: "July 21, 2025",
@@ -19,7 +19,6 @@ const RFQResponder: React.FC = () => {
     requirements: 8
   };
 
-  // Mock entity data
   const entityData = {
     name: "Gunn Construction LLC",
     location: "Arlington, Virginia",
@@ -29,9 +28,8 @@ const RFQResponder: React.FC = () => {
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    
+
     try {
-      // Call to your AI API endpoint
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
@@ -48,10 +46,11 @@ const RFQResponder: React.FC = () => {
       }
 
       const generatedResponse: Response = await response.json();
+      setShouldScrollToResponse(true);
       setCurrentResponse(generatedResponse);
     } catch (error) {
       console.error('Error generating response:', error);
-      // For demo purposes, create a mock response
+      setShouldScrollToResponse(true);
       setCurrentResponse(createMockResponse());
     } finally {
       setIsGenerating(false);
@@ -205,11 +204,10 @@ const RFQResponder: React.FC = () => {
 
   const handleExportResponse = () => {
     if (!currentResponse) return;
-    
-    // Create a simple text export of the response
+
     let exportText = `${currentResponse.title}\n`;
     exportText += `Generated: ${new Date(currentResponse.createdAt).toLocaleDateString()}\n\n`;
-    
+
     currentResponse.blocks
       .sort((a, b) => a.order - b.order)
       .forEach(block => {
@@ -230,7 +228,6 @@ const RFQResponder: React.FC = () => {
         }
       });
 
-    // Create and download file
     const blob = new Blob([exportText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -242,14 +239,15 @@ const RFQResponder: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  React.useEffect(() => {
-    if (currentResponse && responseRef.current) {
-      // Pequeño delay para asegurar que el DOM ya tenga renderizado el contenido
+  // ✅ Auto-scroll only when shouldScrollToResponse is true
+  useEffect(() => {
+    if (shouldScrollToResponse && currentResponse && responseRef.current) {
       setTimeout(() => {
         responseRef.current?.scrollIntoView({ behavior: 'smooth' });
+        setShouldScrollToResponse(false);
       }, 100);
     }
-  }, [currentResponse]);
+  }, [shouldScrollToResponse, currentResponse]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -280,9 +278,7 @@ const RFQResponder: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Entity & RFQ Info Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Entity Info */}
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center gap-3 mb-4">
               <Building2 className="w-6 h-6 text-blue-600" />
@@ -308,7 +304,6 @@ const RFQResponder: React.FC = () => {
             </div>
           </div>
 
-          {/* RFQ Info */}
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center gap-3 mb-4">
               <Award className="w-6 h-6 text-green-600" />
@@ -335,18 +330,13 @@ const RFQResponder: React.FC = () => {
           </div>
         </div>
 
-        {/* Generate Button */}
         <GenerateButton
           onGenerate={handleGenerate}
           isGenerating={isGenerating}
           rfqData={rfqData}
         />
 
-        {/* Response Editor */}
-        <div
-          ref={responseRef}
-          className="bg-white rounded-lg shadow-sm border"
-        >
+        <div ref={responseRef} className="bg-white rounded-lg shadow-sm border">
           <ResponseEditor
             response={currentResponse}
             onUpdateResponse={handleUpdateResponse}
@@ -355,7 +345,6 @@ const RFQResponder: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer */}
       <div className="bg-gray-800 text-white py-8 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h3 className="text-lg font-semibold mb-2">CLEATUS Hackathon July 2025</h3>

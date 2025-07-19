@@ -42,7 +42,7 @@ const BlockSchema = z.union([
       type: z.enum(['text', 'number', 'date', 'email', 'textarea']),
       value: z.string(),
       required: z.boolean(),
-      placeholder: z.string().optional(),
+      placeholder: z.string(),
     })),
   }),
 ]);
@@ -155,7 +155,7 @@ Make sure to include proper form fields for data collection and ensure the respo
 
     // Generate response using AI
     const result = await generateObject({
-      model: openai('gpt-4-turbo'),
+      model: openai('gpt-4o'),
       system: systemPrompt,
       prompt: userPrompt,
       schema: ResponseSchema,
@@ -172,6 +172,8 @@ Make sure to include proper form fields for data collection and ensure the respo
       lastModified: new Date(),
       status: 'draft' as const,
     };
+
+    console.log('Generated RFQ response:', response);
 
     return NextResponse.json(response);
 

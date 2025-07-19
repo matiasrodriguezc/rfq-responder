@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Block, Response, FormField } from '../types';
 import { Edit3, Trash2, GripVertical, Plus, FileText, Heading1, Heading2, Heading3, ClipboardList } from 'lucide-react';
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult
+} from '@hello-pangea/dnd';
 
 interface ResponseEditorProps {
   response: Response | null;
@@ -15,11 +21,17 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
 }) => {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>('');
+  const [editFormTitle, setEditFormTitle] = useState<string>('');
+  const [editFormFields, setEditFormFields] = useState<FormField[]>([]);
+  const blockRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const handleEditBlock = (block: Block) => {
     setEditingBlockId(block.id);
     if (block.type === 'text' || block.type === 'h1' || block.type === 'h2' || block.type === 'h3') {
       setEditContent(block.content);
+    } else if (block.type === 'form') {
+      setEditFormTitle(block.title);
+      setEditFormFields(block.fields.map(field => ({ ...field }))); // Copia segura
     }
   };
 
@@ -30,6 +42,8 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
       if (block.id === editingBlockId) {
         if (block.type === 'text' || block.type === 'h1' || block.type === 'h2' || block.type === 'h3') {
           return { ...block, content: editContent };
+        } else if (block.type === 'form') {
+          return { ...block, title: editFormTitle, fields: editFormFields };
         }
       }
       return block;
@@ -43,37 +57,20 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
 
     setEditingBlockId(null);
     setEditContent('');
+    setEditFormTitle('');
+    setEditFormFields([]);
   };
 
   const handleCancelEdit = () => {
     setEditingBlockId(null);
     setEditContent('');
+    setEditFormTitle('');
+    setEditFormFields([]);
   };
 
   const handleDeleteBlock = (blockId: string) => {
     if (!response) return;
-
     const updatedBlocks = response.blocks.filter(block => block.id !== blockId);
-    onUpdateResponse({
-      ...response,
-      blocks: updatedBlocks,
-      lastModified: new Date()
-    });
-  };
-
-  const handleUpdateFormField = (blockId: string, fieldId: string, value: string) => {
-    if (!response) return;
-
-    const updatedBlocks = response.blocks.map(block => {
-      if (block.id === blockId && block.type === 'form') {
-        const updatedFields = block.fields.map(field => 
-          field.id === fieldId ? { ...field, value } : field
-        );
-        return { ...block, fields: updatedFields };
-      }
-      return block;
-    });
-
     onUpdateResponse({
       ...response,
       blocks: updatedBlocks,
@@ -110,6 +107,26 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
       blocks: [...response.blocks, newBlock],
       lastModified: new Date()
     });
+
+    setTimeout(() => {
+      const el = blockRefs.current[newBlock.id];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination || !response) return;
+    const reordered = Array.from(response.blocks);
+    const [removed] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, removed);
+
+    const updatedBlocks = reordered.map((block, idx) => ({ ...block, order: idx }));
+
+    onUpdateResponse({
+      ...response,
+      blocks: updatedBlocks,
+      lastModified: new Date()
+    });
   };
 
   const getBlockIcon = (type: Block['type']) => {
@@ -127,7 +144,11 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     const isEditing = editingBlockId === block.id;
 
     return (
-      <div key={block.id} className="group border border-gray-200 rounded-lg p-4 mb-4 hover:border-blue-300 transition-colors">
+      <div
+        key={block.id}
+        ref={el => blockRefs.current[block.id] = el}
+        className="group border border-gray-200 rounded-lg p-4 mb-4 hover:border-blue-300 transition-colors"
+      >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <GripVertical className="w-4 h-4 cursor-move" />
@@ -157,7 +178,7 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white text-gray-900"
               rows={block.type === 'text' ? 4 : 2}
               placeholder={`Enter ${block.type} content...`}
             />
@@ -176,20 +197,71 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
               </button>
             </div>
           </div>
+        ) : isEditing && block.type === 'form' ? (
+          <div className="space-y-4">
+            <input
+              type="text"
+              value={editFormTitle}
+              onChange={(e) => setEditFormTitle(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white text-gray-900"
+              placeholder="Enter form title..."
+            />
+            <div className="space-y-3">
+              {editFormFields.map((field, index) => (
+                <div key={field.id}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {field.label}
+                    {field.required && <span className="text-red-500 ml-1">*</span>}
+                  </label>
+                  {field.type === 'textarea' ? (
+                    <textarea
+                      value={field.value}
+                      onChange={(e) => {
+                        const updated = [...editFormFields];
+                        updated[index].value = e.target.value;
+                        setEditFormFields(updated);
+                      }}
+                      placeholder={field.placeholder}
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      rows={3}
+                    />
+                  ) : (
+                    <input
+                      type={field.type}
+                      value={field.value}
+                      onChange={(e) => {
+                        const updated = [...editFormFields];
+                        updated[index].value = e.target.value;
+                        setEditFormFields(updated);
+                      }}
+                      placeholder={field.placeholder}
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+              >
+                Save
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="mt-2">
-            {block.type === 'h1' && (
-              <h1 className="text-2xl font-bold text-gray-800">{block.content}</h1>
-            )}
-            {block.type === 'h2' && (
-              <h2 className="text-xl font-semibold text-gray-800">{block.content}</h2>
-            )}
-            {block.type === 'h3' && (
-              <h3 className="text-lg font-medium text-gray-800">{block.content}</h3>
-            )}
-            {block.type === 'text' && (
-              <p className="text-gray-700 leading-relaxed">{block.content}</p>
-            )}
+            {block.type === 'h1' && <h1 className="text-2xl font-bold text-gray-800">{block.content}</h1>}
+            {block.type === 'h2' && <h2 className="text-xl font-semibold text-gray-800">{block.content}</h2>}
+            {block.type === 'h3' && <h3 className="text-lg font-medium text-gray-800">{block.content}</h3>}
+            {block.type === 'text' && <p className="text-gray-700 leading-relaxed">{block.content}</p>}
             {block.type === 'form' && (
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-800 mb-3">{block.title}</h4>
@@ -203,18 +275,18 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                       {field.type === 'textarea' ? (
                         <textarea
                           value={field.value}
-                          onChange={(e) => handleUpdateFormField(block.id, field.id, e.target.value)}
+                          disabled
                           placeholder={field.placeholder}
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-100"
                           rows={3}
                         />
                       ) : (
                         <input
                           type={field.type}
                           value={field.value}
-                          onChange={(e) => handleUpdateFormField(block.id, field.id, e.target.value)}
+                          disabled
                           placeholder={field.placeholder}
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-100"
                         />
                       )}
                     </div>
@@ -262,16 +334,39 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
         </div>
       </div>
 
-      <div className="space-y-4">
-        {response.blocks
-          .sort((a, b) => a.order - b.order)
-          .map(renderBlock)}
-      </div>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="blocks">
+          {(provided) => (
+            <div
+              className="space-y-4"
+              ref={provided.innerRef}
+              {...provided.draggableProps}
+            >
+              {response.blocks
+                .sort((a, b) => a.order - b.order)
+                .map((block, idx) => (
+                  <Draggable key={block.id} draggableId={block.id} index={idx}>
+                    {(provided) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        {...provided.dragHandleProps}
+                      >
+                        {renderBlock(block)}
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
 
       <div className="mt-8 p-4 border-2 border-dashed border-gray-300 rounded-lg">
         <div className="text-center">
           <p className="text-gray-500 mb-4">Add new block to your response:</p>
-          <div className="flex justify-center gap-2 flex-wrap">
+          <div className="text-gray-500 flex justify-center gap-2 flex-wrap">
             {[
               { type: 'h1' as const, label: 'Heading 1', icon: Heading1 },
               { type: 'h2' as const, label: 'Heading 2', icon: Heading2 },

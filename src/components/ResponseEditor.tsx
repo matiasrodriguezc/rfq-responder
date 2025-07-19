@@ -342,7 +342,7 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
             <div
               className="space-y-4"
               ref={provided.innerRef}
-              {...provided.draggableProps}
+              {...provided.droppableProps} 
             >
               {response.blocks
                 .sort((a, b) => a.order - b.order)

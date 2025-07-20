@@ -1,11 +1,8 @@
-// src/app/api/generate/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 
-// Schema for AI response validation
 const BlockSchema = z.union([
   z.object({
     id: z.string(),
@@ -98,7 +95,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { rfqId, entityId } = body;
-
     // In a real app, validate the IDs and fetch actual data
     if (rfqId !== "FA301625Q0050" || entityId !== "gunn-construction-llc") {
       return NextResponse.json(
@@ -106,52 +102,50 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
     // Construct prompt for AI
     const systemPrompt = `You are an expert government contracting specialist creating RFQ responses. 
+      Create a comprehensive, professional RFQ response with the following structure:
+      - Use heading blocks (h1, h2, h3) for organization
+      - Use text blocks for detailed descriptions and explanations  
+      - Use form blocks for required data collection fields
+      - Ensure all government requirements are addressed
+      - Make the response specific to the company's capabilities
 
-Create a comprehensive, professional RFQ response with the following structure:
-- Use heading blocks (h1, h2, h3) for organization
-- Use text blocks for detailed descriptions and explanations  
-- Use form blocks for required data collection fields
-- Ensure all government requirements are addressed
-- Make the response specific to the company's capabilities
+      Key principles:
+      - Be thorough and professional
+      - Address all RFQ requirements specifically
+      - Include all necessary forms and data fields
+      - Use proper government contracting language
+      - Ensure compliance with stated requirements`;
 
-Key principles:
-- Be thorough and professional
-- Address all RFQ requirements specifically
-- Include all necessary forms and data fields
-- Use proper government contracting language
-- Ensure compliance with stated requirements`;
+          const userPrompt = `Create an RFQ response for:
 
-    const userPrompt = `Create an RFQ response for:
+      RFQ Details:
+      - Title: ${RFQ_DATA.title}
+      - Description: ${RFQ_DATA.description}
+      - Requirements: ${RFQ_DATA.requirements.join(', ')}
+      - Deadline: ${RFQ_DATA.deadline}
+      - Value: ${RFQ_DATA.estimatedValue}
+      - NAICS: ${RFQ_DATA.naicsCode}
+      - Set-Aside: ${RFQ_DATA.setAside}
 
-RFQ Details:
-- Title: ${RFQ_DATA.title}
-- Description: ${RFQ_DATA.description}
-- Requirements: ${RFQ_DATA.requirements.join(', ')}
-- Deadline: ${RFQ_DATA.deadline}
-- Value: ${RFQ_DATA.estimatedValue}
-- NAICS: ${RFQ_DATA.naicsCode}
-- Set-Aside: ${RFQ_DATA.setAside}
+      Company Details:
+      - Name: ${ENTITY_DATA.name}
+      - Location: ${ENTITY_DATA.address}
+      - Capabilities: ${ENTITY_DATA.capabilities.join(', ')}
+      - NAICS Codes: ${ENTITY_DATA.naicsCodes.join(', ')}
 
-Company Details:
-- Name: ${ENTITY_DATA.name}
-- Location: ${ENTITY_DATA.address}
-- Capabilities: ${ENTITY_DATA.capabilities.join(', ')}
-- NAICS Codes: ${ENTITY_DATA.naicsCodes.join(', ')}
+      Required sections to include:
+      1. Title/Header
+      2. Company Information
+      3. Basic Quote Information Form (company name, CAGE code, delivery date, pricing, warranty)
+      4. Technical Specifications
+      5. Contact Information Form (POC, phone, email, tax ID)
+      6. Compliance & Certifications
+      7. Delivery & Timeline
+      8. Additional Requirements (as needed)
 
-Required sections to include:
-1. Title/Header
-2. Company Information
-3. Basic Quote Information Form (company name, CAGE code, delivery date, pricing, warranty)
-4. Technical Specifications
-5. Contact Information Form (POC, phone, email, tax ID)
-6. Compliance & Certifications
-7. Delivery & Timeline
-8. Additional Requirements (as needed)
-
-Make sure to include proper form fields for data collection and ensure the response is complete and professional.`;
+      Make sure to include proper form fields for data collection and ensure the response is complete and professional.`;
 
     // Generate response using AI
     const result = await generateObject({

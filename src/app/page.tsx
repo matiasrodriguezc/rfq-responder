@@ -5,6 +5,7 @@ import { Response } from '../types';
 import GenerateButton from '../components/GenerateButton';
 import ResponseEditor from '../components/ResponseEditor';
 import { Building2, FileText, Award, CheckCircle } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 const RFQResponder: React.FC = () => {
   const [currentResponse, setCurrentResponse] = useState<Response | null>(null);
@@ -203,41 +204,60 @@ const RFQResponder: React.FC = () => {
   };
 
   const handleExportResponse = () => {
-    if (!currentResponse) return;
+  if (!currentResponse) return;
 
-    let exportText = `${currentResponse.title}\n`;
-    exportText += `Generated: ${new Date(currentResponse.createdAt).toLocaleDateString()}\n\n`;
+  const doc = new jsPDF();
+  let y = 10; // posición vertical inicial
+  const lineHeight = 10;
 
-    currentResponse.blocks
-      .sort((a, b) => a.order - b.order)
-      .forEach(block => {
-        if (block.type === 'h1') {
-          exportText += `# ${block.content}\n\n`;
-        } else if (block.type === 'h2') {
-          exportText += `## ${block.content}\n\n`;
-        } else if (block.type === 'h3') {
-          exportText += `### ${block.content}\n\n`;
-        } else if (block.type === 'text') {
-          exportText += `${block.content}\n\n`;
-        } else if (block.type === 'form') {
-          exportText += `**${block.title}**\n`;
-          block.fields.forEach(field => {
-            exportText += `${field.label}: ${field.value || '[TO BE FILLED]'}\n`;
-          });
-          exportText += '\n';
-        }
-      });
+  const addText = (text, options = {}) => {
+    const { size = 12, style = 'normal' } = options;
+    doc.setFontSize(size);
+    doc.setFont(undefined, style);
 
-    const blob = new Blob([exportText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentResponse.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const lines = doc.splitTextToSize(text, 180); // ajusta el ancho del texto
+    lines.forEach(line => {
+      if (y > 280) {
+        doc.addPage();
+        y = 10;
+      }
+      doc.text(line, 10, y);
+      y += lineHeight;
+    });
+    y += 2;
   };
+
+  addText(currentResponse.title, { size: 16, style: 'bold' });
+  addText(`Generated: ${new Date(currentResponse.createdAt).toLocaleDateString()}`, { size: 10 });
+
+  currentResponse.blocks
+    .sort((a, b) => a.order - b.order)
+    .forEach(block => {
+      switch (block.type) {
+        case 'h1':
+          addText(block.content, { size: 14, style: 'bold' });
+          break;
+        case 'h2':
+          addText(block.content, { size: 13, style: 'bold' });
+          break;
+        case 'h3':
+          addText(block.content, { size: 12, style: 'bold' });
+          break;
+        case 'text':
+          addText(block.content);
+          break;
+        case 'form':
+          addText(block.title, { style: 'bold' });
+          block.fields.forEach(field => {
+            addText(`${field.label}: ${field.value || '[TO BE FILLED]'}`);
+          });
+          break;
+      }
+      y += 4;
+    });
+
+  doc.save(`${currentResponse.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+};
 
   // ✅ Auto-scroll only when shouldScrollToResponse is true
   useEffect(() => {

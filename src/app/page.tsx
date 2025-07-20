@@ -210,13 +210,13 @@ const RFQResponder: React.FC = () => {
   let y = 10; // posición vertical inicial
   const lineHeight = 10;
 
-  const addText = (text, options = {}) => {
+  const addText = (text: string, options: { size?: number; style?: 'normal' | 'bold' } = {}) => {
     const { size = 12, style = 'normal' } = options;
     doc.setFontSize(size);
-    doc.setFont(undefined, style);
+    doc.setFont('helvetica', style);
 
     const lines = doc.splitTextToSize(text, 180); // ajusta el ancho del texto
-    lines.forEach(line => {
+    lines.forEach((line: string | string[]) => {
       if (y > 280) {
         doc.addPage();
         y = 10;
